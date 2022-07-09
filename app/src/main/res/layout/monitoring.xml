@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity">
+
+    <Button
+        android:id="@+id/actButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Atualizar"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/notifications" />
+
+    <TextView
+        android:id="@+id/textActive"
+        android:layout_width="117dp"
+        android:layout_height="40dp"
+        android:layout_marginStart="40dp"
+        android:background="#0DFD35"
+        android:text="ATIVO"
+        android:textAlignment="center"
+        android:textColor="#121111"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toTopOf="@+id/view"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textTitle"
+        app:layout_constraintVertical_bias="0.467" />
+
+    <TextView
+        android:id="@+id/textInative"
+        android:layout_width="117dp"
+        android:layout_height="40dp"
+        android:layout_marginEnd="40dp"
+        android:background="#E80B0B"
+        android:text="INATIVO"
+        android:textAlignment="center"
+        android:textColor="#121111"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:visibility="invisible"
+        app:layout_constraintBottom_toTopOf="@+id/view"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textTitle"
+        app:layout_constraintVertical_bias="0.467" />
+
+    <TextView
+        android:id="@+id/textTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="56dp"
+        android:text="Monitoramento"
+        android:textColor="#131313"
+        android:textSize="34sp"
+        android:textStyle="bold"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.497"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <view
+        android:id="@+id/view"
+        class="androidx.viewpager.widget.ViewPager"
+        android:layout_width="324dp"
+        android:layout_height="132dp"
+        android:layout_marginTop="116dp"
+        android:contentDescription="ImageAndText"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.494"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textTitle" />
+
+    <TextView
+        android:id="@+id/textActivity"
+        android:layout_width="199dp"
+        android:layout_height="45dp"
+        android:layout_marginEnd="36dp"
+        android:text="Atividade : "
+        app:layout_constraintBottom_toBottomOf="@+id/view"
+        app:layout_constraintEnd_toEndOf="@+id/view"
+        app:layout_constraintTop_toTopOf="@+id/view"
+        app:layout_constraintVertical_bias="0.287" />
+
+    <androidx.constraintlayout.utils.widget.ImageFilterView
+        android:id="@+id/imgNotifDes"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="36dp"
+        android:visibility="visible"
+        app:layout_constraintBottom_toBottomOf="@+id/view"
+        app:layout_constraintEnd_toStartOf="@+id/textActivity"
+        app:layout_constraintHorizontal_bias="1.0"
+        app:layout_constraintStart_toStartOf="@+id/view"
+        app:layout_constraintTop_toTopOf="@+id/view"
+        app:layout_constraintVertical_bias="0.24"
+        app:srcCompat="@android:drawable/ic_media_play" />
+
+    <androidx.constraintlayout.utils.widget.ImageFilterView
+        android:id="@+id/imgNotifAct"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="36dp"
+        android:tint="#0DFD35"
+        android:visibility="invisible"
+        app:layout_constraintBottom_toBottomOf="@+id/view"
+        app:layout_constraintEnd_toStartOf="@+id/textActivity"
+        app:layout_constraintHorizontal_bias="1.0"
+        app:layout_constraintStart_toStartOf="@+id/view"
+        app:layout_constraintTop_toTopOf="@+id/view"
+        app:layout_constraintVertical_bias="0.24"
+        app:srcCompat="@android:drawable/ic_media_play" />
+
+    <androidx.constraintlayout.utils.widget.ImageFilterView
+        android:id="@+id/imageNotError"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="36dp"
+        android:visibility="invisible"
+        app:layout_constraintBottom_toBottomOf="@+id/view"
+        app:layout_constraintEnd_toStartOf="@+id/textActivity"
+        app:layout_constraintHorizontal_bias="1.0"
+        app:layout_constraintStart_toStartOf="@+id/view"
+        app:layout_constraintTop_toTopOf="@+id/view"
+        app:layout_constraintVertical_bias="0.25"
+        app:srcCompat="@android:drawable/btn_dialog" />
+
+    <androidx.constraintlayout.utils.widget.ImageFilterView
+        android:id="@+id/imgSysDes"
+        android:layout_width="71dp"
+        android:layout_height="67dp"
+        android:layout_marginStart="40dp"
+        android:layout_marginTop="28dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/view"
+        app:srcCompat="@android:drawable/ic_media_play" />
+
+    <androidx.constraintlayout.utils.widget.ImageFilterView
+        android:id="@+id/imgSysAct"
+        android:layout_width="71dp"
+        android:layout_height="67dp"
+        android:layout_marginStart="40dp"
+        android:layout_marginTop="28dp"
+        android:tint="#0DFD35"
+        android:visibility="invisible"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/view"
+        app:srcCompat="@android:drawable/ic_media_play" />
+
+    <androidx.constraintlayout.utils.widget.ImageFilterView
+        android:id="@+id/imgMiddleLevel"
+        android:layout_width="71dp"
+        android:layout_height="67dp"
+        android:layout_marginStart="40dp"
+        android:layout_marginTop="28dp"
+        android:tint="#E4E110"
+        android:visibility="invisible"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/view"
+        app:srcCompat="@android:drawable/ic_media_play" />
+
+    <androidx.constraintlayout.utils.widget.ImageFilterView
+        android:id="@+id/imgHightLevel"
+        android:layout_width="71dp"
+        android:layout_height="67dp"
+        android:layout_marginStart="40dp"
+        android:layout_marginTop="28dp"
+        android:tint="#CA0717"
+        android:visibility="invisible"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/view"
+        app:srcCompat="@android:drawable/ic_media_play" />
+
+    <androidx.constraintlayout.utils.widget.ImageFilterView
+        android:id="@+id/imageSystemError"
+        android:layout_width="71dp"
+        android:layout_height="67dp"
+        android:layout_marginStart="40dp"
+        android:layout_marginTop="28dp"
+        android:visibility="invisible"
+        app:layout_constraintEnd_toStartOf="@+id/notifications"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/view"
+        app:srcCompat="@android:drawable/ic_notification_overlay" />
+
+    <TextView
+        android:id="@+id/notifications"
+        android:layout_width="209dp"
+        android:layout_height="109dp"
+        android:layout_marginStart="40dp"
+        android:layout_marginBottom="152dp"
+        android:text="Notificações : "
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.117"
+        app:layout_constraintStart_toEndOf="@+id/imgSysDes"
+        app:layout_constraintTop_toBottomOf="@+id/view"
+        app:layout_constraintVertical_bias="0.233" />
+
+    <TextView
+        android:id="@+id/textAux1"
+        android:layout_width="152dp"
+        android:layout_height="31dp"
+        android:layout_marginTop="40dp"
+        android:background="#A89C9C"
+        android:text="Verifique a conexão"
+        android:textAlignment="center"
+        android:textColor="#F60C0C"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:visibility="invisible"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.154"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/notifications" />
+
+    <TextView
+        android:id="@+id/textAux2"
+        android:layout_width="152dp"
+        android:layout_height="31dp"
+        android:layout_marginTop="40dp"
+        android:background="#A89C9C"
+        android:text="Reinicie o sistema"
+        android:textAlignment="center"
+        android:textColor="#F60C0C"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:visibility="invisible"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.83"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/notifications" />
+
+    <Button
+        android:id="@+id/exitButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Voltar"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/actButton" />
+
+    <ImageButton
+        android:id="@+id/imgDanger"
+        android:layout_width="72dp"
+        android:layout_height="67dp"
+        android:background="#232222"
+        android:tint="#DF0808"
+        android:visibility="invisible"
+        app:layout_constraintBottom_toTopOf="@+id/textAux1"
+        app:layout_constraintEnd_toStartOf="@+id/notifications"
+        app:layout_constraintHorizontal_bias="0.476"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/view"
+        app:layout_constraintVertical_bias="0.254"
+        app:srcCompat="@android:drawable/ic_dialog_alert" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
