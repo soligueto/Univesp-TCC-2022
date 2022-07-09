@@ -15,7 +15,7 @@ Esquema elétrico disponibilizado para uso : https://github.com/soligueto/Unives
 
 APK disponível para download e instalação : https://github.com/soligueto/Univesp-TCC-2022/blob/master/app-release.apk
 
-O aplicativo é livre não sendo aplicado nenhum tipo de restrição quanto ao uso e/ou modificação, pedimos apenas mencionar os desenvolvedores.
+O aplicativo e esquema elétrico são de uso livre, não sendo aplicado nenhum tipo de restrição quanto ao uso e/ou modificação, pedimos apenas que sejam mencionados os desenvolvedores.
 
 Membros do grupo :
 
