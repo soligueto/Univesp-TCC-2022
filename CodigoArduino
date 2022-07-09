@@ -1,0 +1,936 @@
+
+#include <WiFiUdp.h>
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
+#include <WiFiAP.h>
+#include "FS.h"
+#include "SPIFFS.h"
+#include <ESPmDNS.h>
+#include <ArduinoJson.h>
+#include "uptime.h"
+#include <NTPClient.h>
+#include <Update.h>
+#include <HTTPClient.h>
+ 
+ 
+ 
+ 
+//RTOS
+//SEMAFORO
+SemaphoreHandle_t xFlash_semaphore = NULL;
+ 
+ 
+//TASK
+void Task_Wifi( void *pvParameters );
+ 
+//SUBs
+void setupWServer();
+ 
+ 
+#include "SISTEMA.h"
+#include "WIFI.h"
+#include "NIVEL.h"
+#include "WSERVER.h"
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+void setup() {
+  Serial.begin(115200);
+  openFS();
+  setup_nivel();
+ 
+  //SEMAFORO
+  xFlash_semaphore = xSemaphoreCreateMutex();
+  
+  if (xFlash_semaphore == NULL ) {
+    Serial.println("- Falha ao inicializar semaforos|Filas. O programa nao pode prosseguir.");
+    delay(2000);
+    ESP.restart();
+  } else {
+    Serial.println("- Semaforos|Filas foram inicializadas com sucesso.");
+  }
+ 
+ 
+  //TASK
+  xTaskCreate(Task_Wifi, "Task_Wifi", 4000, NULL, 1, NULL);
+ 
+}
+ 
+void loop() {
+ 
+  handler_nivel();
+  
+}
+
+const int pin_boia[3] = {32, 33, 34};
+int status_boia[3] = {0, 0, 0};
+ 
+//NIVEL
+int nivel = 0;
+ 
+//API SEND
+String url = "http://victor.jrcassa.com.br/set";
+boolean libera_enviar = true;
+ 
+void setup_nivel();
+void handler_nivel();
+void send_nivel();
+ 
+ 
+void setup_nivel() {
+  for (int x = 0 ;  x < 3; x++) {
+    pinMode(pin_boia[x], INPUT);
+  }
+}
+ 
+void handler_nivel() {
+ 
+  //  Serial.println();
+ 
+  Serial.print("Boia 1 -> ");
+  status_boia[0] = digitalRead(pin_boia[0]);
+  Serial.println( status_boia[0]);
+ 
+  Serial.print("Boia 2 -> ");
+  status_boia[1] = digitalRead(pin_boia[1]);
+  Serial.println( status_boia[1]);
+ 
+  Serial.print("Boia 3 -> ");
+  status_boia[2] = digitalRead(pin_boia[2]);
+  Serial.println( status_boia[2]);
+ 
+  if (!digitalRead(pin_boia[0])) {
+    nivel = 100;
+  } else if (!digitalRead(pin_boia[1])) {
+    nivel = 90;
+  } else if (!digitalRead(pin_boia[2])) {
+    nivel = 50;
+  } else {
+    nivel = 0;
+  }
+ 
+  Serial.print("Nivel  -> ");
+  Serial.println(nivel);
+ 
+ 
+  delay(1000);
+  send_nivel();
+  delay(3000);
+ 
+}
+ 
+void send_nivel() {
+ 
+  String url_send = url;
+  url_send += "?";
+  url_send += "b1=";
+  url_send += status_boia[0];
+  url_send += "&b2=";
+  url_send += status_boia[1];
+  url_send += "&b3=";
+  url_send += status_boia[2];
+  url_send += "&nivel=";
+  url_send += nivel;
+ 
+  if (WiFi.status() == WL_CONNECTED and libera_enviar and modo_wifi) {
+    HTTPClient http;
+    http.begin(url_send.c_str());
+    int httpResponseCode = http.GET();
+    String payload = http.getString();
+ 
+    if (httpResponseCode > 0) {
+      if (httpResponseCode == 200) {
+        Serial.println("- Dados enviado com sucesso");
+ 
+      } else {
+        Serial.println(" [ERRO] - Não foi possivel enviar os dados via API");
+      }
+    }
+    Serial.println(httpResponseCode);
+    Serial.println(payload);
+    Serial.println(url_send.c_str());
+    http.end();
+  }
+ 
+}
+
+#define uS_TO_S_FACTOR 1000000
+ 
+//VARIAVEIS SISTEMA
+String id_chip = "";
+String versao_fw = "1.1";
+//DATA E HORA
+String data_origem = "NTP";//FLASH By WIFI
+String endereco_ntp = "0.br.pool.ntp.org";//FLASH By WIFI
+String data_atual = "";
+String hora_atual = "";
+WiFiUDP udp_ntp;
+bool ntp_ok = false;
+NTPClient time_cliente_ntp(udp_ntp, endereco_ntp.c_str(), -3 * 3600 , 60000);
+//LICENCA
+unsigned long t_licenca = millis();
+ 
+void getCHIPID();
+void openFS(void);
+String print_reset_reason(RESET_REASON reason);
+void check_ntp();
+void update_data_hora();
+void restart() ;
+void valida_licenca(bool modo_wifi);
+ 
+ 
+ 
+ 
+void getCHIPID() {
+  id_chip = String((uint32_t)ESP.getEfuseMac(), HEX);
+}
+ 
+void openFS(void) {
+  getCHIPID();
+  String st_log = "";
+ 
+  if (false) {
+    st_log = " - FORMATANDO FLASH.";
+    // SPIFFS.format();
+  }
+ 
+  if (!SPIFFS.begin()) {
+    st_log = "- Erro ao abrir FLASH.";
+    ESP.restart();
+  } else {
+    st_log = "- FLASH aberto com sucesso.";
+  }
+ 
+ 
+  Serial.println(st_log);
+}
+ 
+ 
+String print_reset_reason(RESET_REASON reason)
+{
+  String retorna = "";
+  switch ( reason)
+  {
+    case 1 : retorna = "POWERON_RESET"; break;         /**<1,  Vbat power on reset*/
+    case 3 : retorna = "SW_RESET"; break;             /**<3,  Software reset digital core*/
+    case 4 : retorna = "OWDT_RESET"; break;           /**<4,  Legacy watch dog reset digital core*/
+    case 5 : retorna = "DEEPSLEEP_RESET"; break;      /**<5,  Deep Sleep reset digital core*/
+    case 6 : retorna = "SDIO_RESET"; break;           /**<6,  Reset by SLC module, reset digital core*/
+    case 7 : retorna = "TG0WDT_SYS_RESET"; break;     /**<7,  Timer Group0 Watch dog reset digital core*/
+    case 8 : retorna = "TG1WDT_SYS_RESET"; break;     /**<8,  Timer Group1 Watch dog reset digital core*/
+    case 9 : retorna = "RTCWDT_SYS_RESET"; break;     /**<9,  RTC Watch dog Reset digital core*/
+    case 10 : retorna = "INTRUSION_RESET"; break;     /**<10, Instrusion tested to reset CPU*/
+    case 11 : retorna = "TGWDT_CPU_RESET"; break;     /**<11, Time Group reset CPU*/
+    case 12 : retorna = "SW_CPU_RESET"; break;        /**<12, Software reset CPU*/
+    case 13 : retorna = "RTCWDT_CPU_RESET"; break;    /**<13, RTC Watch dog Reset CPU*/
+    case 14 : retorna = "EXT_CPU_RESET"; break;       /**<14, for APP CPU, reseted by PRO CPU*/
+    case 15 : retorna = "RTCWDT_BROWN_OUT_RESET"; break; /**<15, Reset when the vdd voltage is not stable*/
+    case 16 : retorna = "RTCWDT_RTC_RESET"; break;    /**<16, RTC Watch dog reset digital core and rtc module*/
+    default : retorna = "NO_MEAN";
+  }
+  return retorna;
+ 
+}
+ 
+void inicia_data_hora() {
+ 
+  if (data_origem.equals( "NTP")) {
+    Serial.println("-A origem da data e hora e NTP");
+    time_cliente_ntp.begin();
+    delay(100);
+    time_cliente_ntp.update();
+    delay(100);
+    check_ntp();
+  } else if (data_origem.equals( "RTC")) {
+    Serial.println("-A origem da data e hora e RTC");
+  }
+ 
+}
+ 
+void check_ntp() {
+ 
+  if (!ntp_ok) {
+    String ano = time_cliente_ntp.getAno();
+    int ax_ano = ano.toInt();
+    if (ax_ano >= 2020 and ax_ano <= 2030 ) {
+ 
+      Serial.print("- NTP Configurado. ");
+      Serial.print(time_cliente_ntp.getFormattedDate());
+      Serial.print(" ");
+      Serial.println(time_cliente_ntp.getFormattedTime());
+      ntp_ok = true;
+    } else {
+ 
+      Serial.println("- NTP nao Configurado. ");
+      delay(2000);
+      //ESP.restart();
+    }
+  }
+ 
+}
+ 
+void update_data_hora() {
+ 
+  if (data_origem.equals( "NTP")) {
+    data_atual = (String) time_cliente_ntp.getFormattedDate();
+    hora_atual = (String)  time_cliente_ntp.getFormattedTime();
+  }
+}
+ 
+void restart() {
+  yield();
+  delay(1000);
+  yield();
+  ESP.restart();
+}
+ 
+ 
+void valida_licenca(bool modo_wifi){
+if(WiFi.status() == WL_CONNECTED && modo_wifi){
+  if((millis() - t_licenca >1500)){
+      t_licenca = millis();
+   
+      
+   }
+  }
+}
+
+String dominio_dispositivo = "Victor";
+char ssid[60] = "";
+char password[60] = "";
+char ip[60] = "0";
+char gateway[60] = "0";
+char subnet[60] = "0";
+char www_login[10] = "cassa";
+char www_senha[10] = "cassa";
+ 
+//VARIAVEIS RAM
+bool modo_wifi = false; // TRUE = modo cliente |  FALSE = Modo AP
+bool inicia_validacao_portal = false;
+bool inicia_update_wifi_ffs = false;
+ 
+//ROTINAS
+void load_wifi_ffs();
+void configura_wifi_sta();
+void cliente_conecta_wifi(bool portal);
+void update_wifi_ffs(bool fabrica);
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+void Task_Wifi( void *pvParameters )
+{
+  (void) pvParameters;
+  load_wifi_ffs();
+  //UBaseType_t uxHighWaterMark;
+  while (1)
+  {
+ 
+    if (WiFi.status() != WL_CONNECTED && modo_wifi) {
+      cliente_conecta_wifi(false);
+    }
+ 
+    if (inicia_validacao_portal) {
+      cliente_conecta_wifi(true);
+    }
+ 
+    if (inicia_update_wifi_ffs) {
+      update_wifi_ffs(false);
+    }
+ 
+    
+     update_data_hora();
+ 
+    /* Espera n millis segundos */
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    //uxHighWaterMark = uxTaskGetStackHighWaterMark( NULL );
+    //Serial.println("High water mark Task_WifiConect: ");
+    //Serial.println(uxHighWaterMark);
+  }
+}
+ 
+ 
+void load_wifi_ffs() {
+  bool conf_wifi_read = false;
+  //BUSCA ARQUIVO NA FLASH
+  if (SPIFFS.exists("/conf_wifi.json")) {
+    File configFile = SPIFFS.open("/conf_wifi.json", "r");//INSTANCIA
+    if (configFile) {
+      Serial.println();
+      Serial.println("-SETUP Wifi encontrado na FLASH");
+      size_t size = configFile.size();
+      std::unique_ptr<char[]> buf(new char[size]);
+      configFile.readBytes(buf.get(), size);
+      DynamicJsonBuffer jsonBuffer;
+      JsonObject& json = jsonBuffer.parseObject(buf.get());
+      yield();
+      if (json.success()) {
+        String ssid_json = json["ssid"];
+ 
+        if (ssid_json.length() > 3) {
+ 
+          strcpy(ssid, json["ssid"]);
+          strcpy(password, json["password"]);
+          strcpy(ip, json["ip"]);
+          strcpy(gateway, json["gateway"]);
+          strcpy(subnet, json["subnet"]);
+          strcpy(www_login, json["www_login"]);
+          strcpy(www_senha, json["www_senha"]);
+          nome_dispositivo = json["nome_dispositivo"].as<String>();
+          dominio_dispositivo = json["dominio_dispositivo"].as<String>();
+          endereco_ntp = json["endereco_ntp"].as<String>();
+          data_origem = json["data_origem"].as<String>();
+ 
+          conf_wifi_read = true;
+        }
+ 
+      }
+      configFile.close();
+    }
+  }
+ 
+ 
+  //ARQUIVO  EXISTE NA FLASH
+  if (conf_wifi_read) {
+    modo_wifi = true;//MODO CLIENTE
+  } else {
+    configura_wifi_sta(); //MODO STA
+  }
+ 
+ 
+}
+ 
+ 
+void configura_wifi_sta() {
+  WiFi.disconnect(true);
+  Serial.println("- WIFI Configurado como Ponto de Acesso");
+  WiFi.setSleep(false);
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP("Victor", "12345678");
+  IPAddress IP = WiFi.softAPIP();
+  Serial.print("IP v4: ");
+  Serial.println(IP);
+  setupWServer();
+ 
+}
+ 
+ 
+void cliente_conecta_wifi(bool portal) {
+  WiFi.disconnect();
+  WiFi.setSleep(false);
+  WiFi.setAutoReconnect(false);
+  WiFi.mode(WIFI_STA);
+  delay(100);
+  WiFi.begin(ssid, password);
+ 
+  String aux_ip = (String) ip;
+ 
+  //IP ESTATICO
+  if (!aux_ip.equals("0")) {
+    IPAddress ip_get;
+    IPAddress gatew_get;
+    IPAddress subnet_get;
+    IPAddress dns { 8, 8, 8, 8};
+    ip_get.fromString(ip);
+    gatew_get.fromString(gateway);
+    subnet_get.fromString(subnet);
+    WiFi.config(ip_get, gatew_get, subnet_get, dns);
+    Serial.println("[WIFI] - WIFI Configurado com IP");
+  } else {
+    Serial.println("[WIFI] - WIFI Configurado via DHCP");
+ 
+  }
+ 
+  Serial.print("[WIFI] - SSID ");
+  Serial.println(ssid);
+  Serial.print("[WIFI] - SENHA ");
+  Serial.println(password);
+  Serial.println(" ");
+  int wait = 0;
+  bool segunda_tentativa = false;
+  while (WiFi.status() != WL_CONNECTED and wait <= 15)
+  {
+ 
+    if (wait >= 14 && !segunda_tentativa && portal) {
+      wait = 0;
+      segunda_tentativa = true;
+      Serial.println(" ");
+      WiFi.disconnect();
+      WiFi.setSleep(false);
+      WiFi.setAutoReconnect(false);
+      WiFi.mode(WIFI_STA);
+      delay(100);
+      WiFi.begin(ssid, password);
+    } else {
+      Serial.print(".");
+      wait++;
+    }
+ 
+    vTaskDelay( 1000 / portTICK_PERIOD_MS );
+  }
+  Serial.println(" ");
+ 
+  if (WiFi.status() == WL_CONNECTED && modo_wifi) {
+    setupWServer();
+  } else if (portal && WiFi.status() != WL_CONNECTED) {
+    Serial.println("- Dados incorreto, nao foi possivel conectar.");
+    configura_wifi_sta();
+  } else if (portal) {
+    modo_wifi = true;
+    inicia_update_wifi_ffs = true;
+  }
+ 
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("- DADOS DA REDE WIFI CONECTADO");
+    Serial.println(WiFi.localIP());
+    Serial.println(WiFi.gatewayIP());
+    Serial.println(WiFi.subnetMask());
+    delay(100);
+    inicia_data_hora();
+    delay(100);
+    if (!MDNS.begin(dominio_dispositivo.c_str())) {
+      Serial.println("Error setting up MDNS responder!");
+      while (1) {
+        delay(1000);
+      }
+    } else {
+      Serial.print("Dominio  http://www.");
+      Serial.print(dominio_dispositivo);
+      Serial.print(".local");
+    }
+    MDNS.addService("http", "tcp", 80);
+  }
+ 
+  inicia_validacao_portal = false;
+}
+ 
+ 
+void update_wifi_ffs(bool fabrica) {
+  File configFile = SPIFFS.open("/conf_wifi.json", "w");
+  DynamicJsonBuffer jsonBuffer;
+  JsonObject& json = jsonBuffer.createObject();
+ 
+  json["ssid"] = fabrica == true ? "0" : ssid;
+  json["password"] = fabrica == true ? "0" : password;
+  json["ip"] = fabrica == true ? "0" : ip;
+  json["gateway"] =  fabrica == true ? "0" : gateway;
+  json["subnet"] = fabrica == true ? "0" : subnet;
+  json["nome_dispositivo"] = fabrica == true ? "cassa" : nome_dispositivo;
+  json["dominio_dispositivo"] = fabrica == true ? "cassa" : dominio_dispositivo;
+  json["www_login"] = fabrica == true ? "cassa" : www_login;
+  json["www_senha"] = fabrica == true ? "cassa" : www_senha;
+  json["data_origem"] = fabrica == true ? "NTP" : data_origem;
+  json["endereco_ntp"] = fabrica == true ? "0.br.pool.ntp.org" : endereco_ntp;
+ 
+ 
+ 
+ 
+  json.printTo(configFile);
+  configFile.close();
+  inicia_update_wifi_ffs = false;
+}
+
+bool wserver_logado = false;
+bool wserver_iniciado = false;
+ 
+void request_send(AsyncWebServerRequest *request, String html);
+bool is_logado(AsyncWebServerRequest *request);
+void expulsa_visitante(AsyncWebServerRequest *request);
+ 
+ 
+void setupWServer() {
+  if (!wserver_iniciado) {
+    xSemaphoreTake(xFlash_semaphore, portMAX_DELAY);
+ 
+    //PORTAL
+    server.on("/set/portal", HTTP_GET, [](AsyncWebServerRequest * request) {
+ 
+      String html = "1";
+ 
+      String ssid_ = (String)request->arg("ssid");
+      String senha_ = (String) request->arg("senha");
+      String ip_ = (String) request->arg("ip");
+      String gateway_ = (String) request->arg("gateway");
+      String mask_ = (String) request->arg("mask");
+      String nome_ = (String) request->arg("nome");
+      String dominio_ = (String) request->arg("dominio");
+      String loginw_ = (String) request->arg("login_w");
+      String senhaw_ = (String) request->arg("senha_w");
+ 
+ 
+      ssid_.toCharArray(ssid, 60);
+      senha_.toCharArray(password, 60);
+      ip_.toCharArray(ip, 60);
+      gateway_.toCharArray(gateway, 60);
+      mask_.toCharArray(subnet, 60);
+      nome_dispositivo = nome_;
+      dominio_dispositivo = dominio_;
+      loginw_.toCharArray(www_login, 10);
+      senhaw_.toCharArray(www_senha, 10);
+ 
+ 
+      inicia_validacao_portal = true;
+ 
+ 
+      request->send(200, "text/plain", html);
+ 
+    });
+ 
+    //ROOT
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
+ 
+      if (!modo_wifi) {
+        request->send(SPIFFS, "/portal.html");
+      } else {
+        if (is_logado(request)) {
+          AsyncWebServerResponse *response = request->beginResponse(301);
+          response->addHeader("Location", "/home");
+          request->send(response);
+        } else {
+          AsyncWebServerResponse *response = request->beginResponse(301);
+          response->addHeader("Location", "/login");
+          request->send(response);
+        }
+      }
+    });
+ 
+    //LOGIN
+    server.on("/login", HTTP_GET, [](AsyncWebServerRequest * request) {
+      if (modo_wifi) {
+        if (is_logado(request)) {
+          AsyncWebServerResponse *response = request->beginResponse(301);
+          response->addHeader("Location", "/home");
+          request->send(response);
+        } else {
+          request->send(SPIFFS, "/login.html");
+        }
+      } else {
+        AsyncWebServerResponse *response = request->beginResponse(301);
+        response->addHeader("Location", "/");
+        request->send(response);
+      }
+ 
+    });
+    server.on("/deslogar", HTTP_GET, [](AsyncWebServerRequest * request) {
+ 
+      Serial.println("Disconnection");
+      AsyncWebServerResponse *response = request->beginResponse(301);
+      response->addHeader("Location", "/login");
+      response->addHeader("Cache-Control", "no-cache");
+      response->addHeader("Set-Cookie", "LOGIN=0");
+      response->addHeader("Set-Cookie", "SENHA=0");
+      request->send(response);
+      return;
+ 
+    });
+    server.on("/autenticar", HTTP_POST, [](AsyncWebServerRequest * request) {
+      AsyncWebServerResponse *response = request->beginResponse(301);
+ 
+      if (request->hasArg("login") && request->hasArg("senha")) {
+        Serial.println("- Tentativa de login");
+        String login = request->arg("login");
+        String senha = request->arg("senha");
+        if (login.length() >= 5  && senha.length() >= 5) {
+          if (login.equals(www_login) &&  senha.equals(www_senha)) {
+            Serial.println("- Usuario autenticado com sucesso. IP:");
+            response->addHeader("Location", "/home#dashboard");
+            response->addHeader("Cache-Control", "no-cache");
+            response->addHeader("Set-Cookie", "LOGIN=" + login);
+            response->addHeader("Set-Cookie", "SENHA=" + senha);
+            Serial.println(request->client()->remoteIP());
+            request->send(response);
+            return;
+          } else {
+            Serial.println("- Login nao autenticado");
+            response->addHeader("Location", "/login?retorno=erro");
+            response->addHeader("Cache-Control", "no-cache");
+            response->addHeader("Set-Cookie", "LOGIN=0");
+            response->addHeader("Set-Cookie", "SENHA=0");
+            request->send(response);
+            return;
+          }
+        }
+      }
+ 
+      response->addHeader("Location", "/login?retorno=parametros");
+      response->addHeader("Cache-Control", "no-cache");
+      response->addHeader("Set-Cookie", "LOGIN=0");
+      response->addHeader("Set-Cookie", "SENHA=0");
+      request->send(response);
+    });
+ 
+    //HOME
+    server.on("/src/style.css", HTTP_GET, [](AsyncWebServerRequest * request) {
+      request->send(SPIFFS, "/src/style.css");
+    });
+    server.on("/src/scripts.js", HTTP_GET, [](AsyncWebServerRequest * request) {
+      request->send(SPIFFS, "/src/scripts.js");
+    });
+    server.on("/home", HTTP_GET, [](AsyncWebServerRequest * request) {
+      expulsa_visitante(request);
+      request->send(SPIFFS, "/home.html");
+    });
+    //HOME | RECEBE DADOS
+    server.on("/get/home", HTTP_GET, [](AsyncWebServerRequest * request) {
+      expulsa_visitante(request);
+      String html = "";
+ 
+      DynamicJsonBuffer jsonBuffer;
+      JsonObject& json = jsonBuffer.createObject();
+      //DASHBOARD
+      //DISPOSITIVO
+      json["versao_fw"] = versao_fw;
+      json["user_logado"] = www_login;
+      json["ram_livre"] = ESP.getFreeHeap() / 1000;
+      json["id_chip"] = id_chip;
+      json["reason"] = print_reset_reason(rtc_get_reset_reason(0));
+      json["data"] = data_atual;
+      json["hora"] = hora_atual;
+      json["data_origem"] = data_origem;
+      //REDE WIFI
+      json["ssid"] = ssid;
+      json["password"] = password;
+      json["qualidade_wifi"] = (String)   WiFi.RSSI();
+      json["ip"] = (String) WiFi.localIP().toString();
+      json["gateway"] = (String) WiFi.gatewayIP().toString();
+      json["subnet"] = (String) WiFi.subnetMask().toString();
+      json["mac"] = WiFi.macAddress();
+      //UPTIME
+      uptime::calculateUptime();
+      json["up_dia"] = uptime::getDays();
+      json["up_hora"] = uptime::getHours();
+      json["up_minuto"] = uptime::getMinutes();
+      json["up_segundo"] = uptime::getSeconds();
+ 
+      //FORMULARIOS
+      //WIFI
+      json["ip_wifi"] = ip;
+      json["gw_wifi"] = gateway;
+      json["mak_wifi"] = subnet;
+ 
+      //DISPOSITIVO
+      json["nome_dispositivo"] = nome_dispositivo;
+      json["dominio_dispositivo"] = dominio_dispositivo;
+ 
+      //NTP -  RTC
+      json["data_origem"] = data_origem;
+      json["endereco_ntp"] = endereco_ntp;
+ 
+ 
+      json.printTo(html);
+      request->send(200, "text/plain", html);
+    });
+    //HOME | ALTERA WIFI
+    server.on("/set/wifi", HTTP_GET, [](AsyncWebServerRequest * request) {
+      expulsa_visitante(request);
+      String html = "1";
+ 
+      String ssid_ = (String)request->arg("ssid");
+      String senha_ = (String) request->arg("passwd");
+      String ip_ = (String) request->arg("wifi_ip");
+      String gateway_ = (String) request->arg("wifi_gw");
+      String mask_ = (String) request->arg("wifi_sn");
+ 
+ 
+ 
+ 
+      ssid_.toCharArray(ssid, 60);
+      senha_.toCharArray(password, 60);
+      ip_.toCharArray(ip, 60);
+      gateway_.toCharArray(gateway, 60);
+      mask_.toCharArray(subnet, 60);
+ 
+      inicia_update_wifi_ffs = true;
+ 
+ 
+      request->send(200, "text/plain", html);
+ 
+    });
+    //HOME | ALTERA DISPOSITIVO
+    server.on("/set/device", HTTP_GET, [](AsyncWebServerRequest * request) {
+      expulsa_visitante(request);
+      String html = "1";
+ 
+      String nome_ = (String)request->arg("nome");
+      String dominio_ = (String) request->arg("dominio");
+ 
+      nome_dispositivo = nome_;
+      dominio_dispositivo = dominio_;
+ 
+      inicia_update_wifi_ffs = true;
+ 
+ 
+      request->send(200, "text/plain", html);
+ 
+    });
+    //HOME | ALTERA DATA & HORA  NTP || RTC
+    server.on("/set/data/origem", HTTP_GET, [](AsyncWebServerRequest * request) {
+      expulsa_visitante(request);
+      String html = "1";
+ 
+ 
+      String origem_ = (String)request->arg("origem");
+      String srv_ntp_ = (String)request->arg("servidor");
+ 
+      //NTP
+      if (origem_.equals("1")) {
+        data_origem = "NTP";
+        endereco_ntp = srv_ntp_;
+      } else {
+        data_origem = "RTC";
+        endereco_ntp = "0.br.pool.ntp.org";
+      }
+ 
+      inicia_update_wifi_ffs = true;
+      request->send(200, "text/plain", html);
+ 
+    });
+    //HOME | AJUSTE  DATA & HORA
+    server.on("/set/data/ajuste", HTTP_GET, [](AsyncWebServerRequest * request) {
+      expulsa_visitante(request);
+      String html = "0";
+ 
+ 
+      if (!data_origem .equals("NTP")) {
+        String dia = (String)request->arg("dia");
+        String mes = (String)request->arg("mes");
+        String ano = (String)request->arg("ano");
+        String hora = (String)request->arg("hora");
+        String minn = (String)request->arg("min");
+        String seg = (String)request->arg("seg");
+        html = "1";
+      } else {
+        html = "2";
+      }
+ 
+ 
+      request->send(200, "text/plain", html);
+    });
+    //HOME | ALTERA SENHA
+    server.on("/set/senha", HTTP_GET, [](AsyncWebServerRequest * request) {
+      expulsa_visitante(request);
+      String html = "0";
+      String senha_antiga = "", nova_senha = "", renova_senha = "";
+ 
+      senha_antiga = request->hasParam("senha_antiga") == true ? request->getParam("senha_antiga")->value() : " ";
+      nova_senha = request->hasParam("nova_senha") == true ? request->getParam("nova_senha")->value() : "";
+      renova_senha = request->hasParam("renova_senha") == true ? request->getParam("renova_senha")->value() : "";
+ 
+ 
+ 
+      if (senha_antiga.equals(www_senha) && nova_senha.equals(renova_senha) && nova_senha.length() > 5) {
+        nova_senha.toCharArray(www_senha, 10);
+        inicia_update_wifi_ffs = true;
+        html = "1";
+      } else if (!senha_antiga.equals(www_senha)) {
+        html = "2";
+      } else if (!nova_senha.equals(renova_senha)) {
+        html = "3";
+      } else if (nova_senha.length() <= 5) {
+        html = "4";
+      }
+ 
+ 
+      request->send(200, "text/plain", html);
+    });
+    //HOME | OTA UPDATE FIRMWARE
+    server.on("/update", HTTP_POST, [&](AsyncWebServerRequest * request) {
+      expulsa_visitante(request);
+      AsyncWebServerResponse *response = request->beginResponse( (Update.hasError())?500:200, "text/plain", (Update.hasError()) ? "FAIL" : 
+      "O firmware foi alterado com sucesso, tente conectar novamente.");
+      response->addHeader("Connection", "close");
+      response->addHeader("Access-Control-Allow-Origin", "*");
+      
+      request->send(response);
+      restart();
+    }, [&](AsyncWebServerRequest * request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+ 
+ 
+      if (!index) {
+        int cmd = (filename == "filesystem") ? U_SPIFFS : U_FLASH;
+        if (!Update.begin(UPDATE_SIZE_UNKNOWN, cmd)) {
+          Update.printError(Serial);
+          return request->send(200, "text/plain", "OTA could not begin");
+        }
+      }
+ 
+      if (len) {
+        if (Update.write(data, len) != len) {
+          return request->send(200, "text/plain", "OTA could not begin");
+        }
+      }
+ 
+      if (final) { 
+        if (!Update.end(true)) { //true to set the size to the current progress
+          Update.printError(Serial);
+          return request->send(200, "text/plain", "Could not end OTA");
+        }
+      } else {
+        return;
+      }
+    });
+ 
+ 
+    xSemaphoreGive(xFlash_semaphore);
+    wserver_iniciado = true;
+ 
+    server.begin();
+  }
+}
+ 
+void request_send(AsyncWebServerRequest * request, String html) {
+  // server.sendHeader(F("Access-Control-Allow-Origin"), F("*"));
+  //server.sendHeader(F("Access-Control-Max-Age"), F("600"));
+  //server.sendHeader(F("Access-Control-Allow-Methods"), F("PUT,POST,GET,OPTIONS"));
+  //server.sendHeader(F("Access-Control-Allow-Headers"), F("*"));
+  AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", html);
+  response->addHeader("Access-Control-Allow-Origin", "*");
+  request->send(response);
+}
+ 
+bool is_logado(AsyncWebServerRequest * request) {
+ 
+  if ( request->hasHeader("Cookie")) {
+    String cookie = request->header("Cookie");
+ 
+    String str_login = "LOGIN=" + (String)www_login;
+    String str_senha = "SENHA=" + (String)www_senha;
+ 
+    if ((cookie.indexOf(str_login) != -1) &&  (cookie.indexOf(str_senha) != -1) ) {
+      return true;
+    }
+ 
+  }
+ 
+  return false;
+}
+ 
+void expulsa_visitante(AsyncWebServerRequest * request) {
+ 
+  if (modo_wifi) {
+    if (!is_logado(request)) {
+      AsyncWebServerResponse *response = request->beginResponse(301);
+      response->addHeader("Location", "/login");
+      response->addHeader("Cache-Control", "no-cache");
+      request->send(response);
+      return;
+    }
+    //LOGADO
+ 
+  } else {
+    AsyncWebServerResponse *response = request->beginResponse(301);
+    response->addHeader("Location", "/");
+    response->addHeader("Cache-Control", "no-cache");
+    request->send(response);
+    return;
+  }
+ 
+}
