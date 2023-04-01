@@ -5,7 +5,7 @@
 
 <h2>Alerta Inundação - TCC -2022 - Grupo 005 - Sala 016 - Univesp</h2>
 
-Aplicativo Android para monitoramento de nével de água em comporta. 
+Aplicativo Android para monitoramento de nível de água em comporta. 
 
 O aplicativo desenvolvido para android, que possui ainda hardware, as informações são enviadas a um servidor e consumidas e apresentadas no aplicativo.
 
